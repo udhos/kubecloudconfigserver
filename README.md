@@ -1,2 +1,2 @@
-# gocloudconfigserver
-Simple centralized cloud configuration server in Go
+# kubecloudconfigserver
+Simple centralized cloud configuration server for Kubernetes in Go
