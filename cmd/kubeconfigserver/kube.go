@@ -20,6 +20,7 @@ type kubeClient struct {
 }
 
 type podInfo struct {
+	name        string
 	namespace   string
 	listOptions metav1.ListOptions
 }
@@ -103,6 +104,7 @@ func (k *kubeClient) getPodInfo() (*podInfo, error) {
 	listOptions := metav1.ListOptions{LabelSelector: labelKey + "=" + labelValue}
 
 	k.podCache = &podInfo{
+		name:        pod.ObjectMeta.Name,
 		namespace:   namespace,
 		listOptions: listOptions,
 	}
@@ -173,8 +175,12 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 		log.Printf("watchPodsAddresses: event=%s pod=%s addr=%s ready=%t",
 			event.Type, pod.Name, addr, ready)
 
+		if pod.Name == podInfo.name {
+			continue // ignore my pod
+		}
+
 		if event.Type != "MODIFIED" {
-			continue
+			continue // ignore other event types
 		}
 
 		out <- podAddress{address: addr, added: ready}
