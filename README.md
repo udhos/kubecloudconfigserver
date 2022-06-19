@@ -65,6 +65,22 @@ export BACKEND_OPTIONS=flatten ;# flatten request path into a flat dir
 kubeconfigserver
 ```
 
+## Test
+
+Query server:
+
+```
+curl localhost:8080/deploy.yml
+```
+
+Query groupcache directly:
+
+```
+curl localhost:5000/_groupcache/<group>/<key>
+
+curl localhost:5000/_groupcache/configfiles/deploy.yml
+```
+
 # Docker
 
 Docker hub:
