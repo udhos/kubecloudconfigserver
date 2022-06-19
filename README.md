@@ -36,6 +36,7 @@ Proxying to an HTTP server:
 
 ```
 export BACKEND=http://configserver:9000
+
 kubeconfigserver
 ```
 
@@ -45,7 +46,8 @@ Reading from filesystem rooted at directory `samples`:
 
 ```
 export BACKEND=dir:samples
-BACKEND_OPTIONS=flatten    ;# flatten request path into a flat dir
+export BACKEND_OPTIONS=flatten ;# flatten request path into a flat dir
+
 kubeconfigserver
 ```
 
