@@ -12,6 +12,16 @@ This configuration server exposes fast cached access to a slow backend.
 
 - The pod replicas automatically find each other by querying Kubernetes API for pods with a shared label `app=<app-name>`. For example, if a deployment is used to create the replicas, the shared label would be `app=<deployment-name>`.
 
+- The server handles refresh notification events from the AMQP queue `config-event-queue` below. Whenever a refresh notification is received for an application, cache entries with that application configuration file are cleared, forcing their refresh from the backend.
+
+```
+exchangeName: springCloudBus
+exchangeType: topic
+queue:        config-event-queue
+```
+
+- The env var `TTL` can be used to enforce a TTL on cache entries. Example: `TTL=300s`. Default value is `TTL=0`, meaning no expiration set for cache entries.
+
 # Build
 
 ```
