@@ -13,7 +13,7 @@ func watchPeers(ch chan<- peerNotification) {
 	for {
 		for _, n := range list {
 			ch <- n
-			time.Sleep(5 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 	}
 }

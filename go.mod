@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/gin-gonic/gin v1.8.1
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
+	github.com/rabbitmq/amqp091-go v1.3.4
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 )
 
