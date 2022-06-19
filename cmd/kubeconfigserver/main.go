@@ -69,6 +69,7 @@ func main() {
 	healthAddr := env.String("HEALTH_ADDR", ":3000")
 	healthPath := env.String("HEALTH_PATH", "/health")
 	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
+	ttl := env.Duration("TTL", time.Duration(0))
 
 	//
 	// create backend
@@ -112,7 +113,11 @@ func main() {
 				log.Printf("fetch: %v", errFetch)
 				return errFetch
 			}
-			dest.SetBytes(data, time.Time{})
+			var expire time.Time // zero value for expire means no expiration
+			if ttl != 0 {
+				expire = time.Now().Add(ttl)
+			}
+			dest.SetBytes(data, expire)
 			return nil
 		}))
 
