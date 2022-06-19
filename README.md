@@ -48,3 +48,21 @@ export BACKEND=dir:samples
 BACKEND_OPTIONS=flatten    ;# flatten request path into a flat dir
 kubeconfigserver
 ```
+
+# Docker
+
+Docker hub:
+
+https://hub.docker.com/r/udhos/kubecloudconfigserver
+
+Pull from docker hub:
+
+```
+docker pull udhos/kubecloudconfigserver:0.0.0
+```
+
+Build recipe:
+
+```
+./docker/build.sh
+```

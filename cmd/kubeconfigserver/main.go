@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -27,26 +29,43 @@ type application struct {
 	me               string
 }
 
+func getVersion(me string) string {
+	return fmt.Sprintf("%s version=%s runtime=%s GOOS=%s GOARCH=%s GOMAXPROCS=%d",
+		me, version, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.GOMAXPROCS(0))
+}
+
 func main() {
 
 	app := &application{
 		me: filepath.Base(os.Args[0]),
 	}
 
-	log.Printf("%s version=%s runtime=%s GOOS=%s GOARCH=%s GOMAXPROCS=%d",
-		app.me, version, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.GOMAXPROCS(0))
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", showVersion, "show version")
+	flag.Parse()
 
-	debug := env.Bool("DEBUG", true)
+	{
+		v := getVersion(app.me)
+		if showVersion {
+			fmt.Print(v)
+			fmt.Println()
+			return
+		}
+		log.Print(v)
+	}
 
+	log.Printf("configuration hints:")
 	log.Printf("backend http:                     export BACKEND=http://configserver:9000")
 	log.Printf("backend directory:                export BACKEND=dir:samples")
 	log.Printf("backend directory option flatten: export BACKEND_OPTIONS=flatten")
+	log.Printf("disable refresh:                  export REFRESH=false")
 
+	debug := env.Bool("DEBUG", true)
 	applicationAddr := env.String("LISTEN_ADDR", ":8080")
 	backendAddr := env.String("BACKEND", "dir:samples")
 	backendOptions := env.String("BACKEND_OPTIONS", "")
 	refreshAmqpURL := env.String("AMQP_URL", "amqp://guest:guest@rabbitmq:5672/")
-	refreshEnabled := env.Bool("REFRESH", false)
+	refreshEnabled := env.Bool("REFRESH", true)
 	healthAddr := env.String("HEALTH_ADDR", ":3000")
 	healthPath := env.String("HEALTH_PATH", "/health")
 	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
