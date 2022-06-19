@@ -5,12 +5,13 @@ import (
 	"net"
 	"os"
 
-	"github.com/golang/groupcache"
+	//"github.com/golang/groupcache"
+	"github.com/mailgun/groupcache"
 	"golang.org/x/exp/maps"
 )
 
-func findMyURL() string {
-	url := buildURL(findMyAddr())
+func findMyURL(groupcachePort string) string {
+	url := buildURL(findMyAddr(), groupcachePort)
 	log.Printf("findMyURL: found: %s", url)
 	return url
 }
@@ -35,13 +36,11 @@ func findMyAddr() string {
 	return addr
 }
 
-const groupcachePort = ":5000"
-
-func buildURL(addr string) string {
+func buildURL(addr, groupcachePort string) string {
 	return "http://" + addr + groupcachePort
 }
 
-func updatePeers(pool *groupcache.HTTPPool) {
+func updatePeers(pool *groupcache.HTTPPool, groupcachePort string) {
 
 	kc, errClient := newKubeClient()
 	if errClient != nil {
@@ -56,7 +55,7 @@ func updatePeers(pool *groupcache.HTTPPool) {
 	peers := map[string]bool{}
 
 	for _, addr := range addresses {
-		url := buildURL(addr)
+		url := buildURL(addr, groupcachePort)
 		peers[url] = true
 	}
 
@@ -69,17 +68,17 @@ func updatePeers(pool *groupcache.HTTPPool) {
 	go watchPeers(kc, ch)
 
 	for n := range ch {
-		url := buildURL(n.address)
+		url := buildURL(n.address, groupcachePort)
 		log.Printf("updatePeers: peer=%s added=%t", url, n.added)
-                count := len(peers)
+		count := len(peers)
 		if n.added {
 			peers[url] = true
 		} else {
 			delete(peers, url)
 		}
-                if len(peers) == count {
-                        continue
-                }
+		if len(peers) == count {
+			continue
+		}
 		keys := maps.Keys(peers)
 		log.Printf("updatePeers: current peers: %v", keys)
 		pool.Set(keys...)

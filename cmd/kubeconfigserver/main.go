@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang/groupcache"
+	//"github.com/golang/groupcache"
+	"github.com/mailgun/groupcache"
 	"github.com/udhos/kubecloudconfigserver/env"
 	"github.com/udhos/kubecloudconfigserver/refresh"
 )
@@ -20,9 +21,10 @@ import (
 const version = "0.0.0"
 
 type application struct {
-	serverMain   *server
-	serverHealth *server
-	me           string
+	serverMain       *serverGin
+	serverHealth     *serverGin
+	serverGroupcache *serverHttp
+	me               string
 }
 
 func main() {
@@ -47,6 +49,7 @@ func main() {
 	refreshEnabled := env.Bool("REFRESH", false)
 	healthAddr := env.String("HEALTH_ADDR", ":3000")
 	healthPath := env.String("HEALTH_PATH", "/health")
+	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
 
 	//
 	// create backend
@@ -58,14 +61,26 @@ func main() {
 	// create groupcache pool
 	//
 
-	myURL := findMyURL()
+	myURL := findMyURL(groupcachePort)
 	pool := groupcache.NewHTTPPool(myURL)
+
+	//
+	// start groupcache server
+	//
+
+	app.serverGroupcache = newServerHttp(groupcachePort, pool)
+
+	go func() {
+		log.Printf("groupcache server: listening on %s", groupcachePort)
+		err := app.serverGroupcache.server.ListenAndServe()
+		log.Printf("groupcache server: exited: %v", err)
+	}()
 
 	//
 	// start watcher for addresses of peers
 	//
 
-	go updatePeers(pool)
+	go updatePeers(pool, groupcachePort)
 
 	// https://talks.golang.org/2013/oscon-dl.slide#46
 	//
@@ -78,22 +93,36 @@ func main() {
 				log.Printf("fetch: %v", errFetch)
 				return errFetch
 			}
-			dest.SetBytes(data)
+			dest.SetBytes(data, time.Time{})
 			return nil
 		}))
+
+	// tableKeys is used to find which key should be removed for a refresh notification
+	// Example:
+	// received notification for: application=config2
+	// then should remove cache key: /path/to/config1-default.yml,config2-default.yml,config3-default.yml
+	tableKeys := newTable()
 
 	//
 	// receive refresh events
 	//
 
 	if refreshEnabled {
-		// "#" means all applications
+		// "#" means receive notification for all applications
 		refresher := refresh.New(refreshAmqpURL, app.me, []string{"#"}, debug, nil)
 
 		go func() {
 			for app := range refresher.C {
-				log.Printf("received refresh for application='%s'", app)
-				log.Printf("FIXME WRITEME remove from cache application='%s'", app)
+				log.Printf("refresh: received notification for application='%s'", app)
+				for _, key := range tableKeys.match(app) {
+					log.Printf("refresh: removing key='%s' for application='%s'", key, app)
+					if errRemove := configFiles.Remove(context.TODO(), key); errRemove != nil {
+						log.Printf("refresh: removing key='%s' for application='%s': error: %v",
+							key, app, errRemove)
+						continue
+					}
+					tableKeys.del(key)
+				}
 			}
 
 			log.Fatal("refresh channel has been closed")
@@ -104,7 +133,7 @@ func main() {
 	// register application routes
 	//
 
-	app.serverMain = newServer(applicationAddr)
+	app.serverMain = newServerGin(applicationAddr)
 
 	const pathAny = "/*anything"
 	log.Printf("registering route: %s %s", applicationAddr, pathAny)
@@ -119,8 +148,10 @@ func main() {
 			return
 		}
 
+		tableKeys.add(path) // record path
+
 		log.Printf("stats main: %#v", configFiles.CacheStats(groupcache.MainCache))
-		log.Printf("stats hot:  %#v", configFiles.CacheStats(groupcache.MainCache))
+		log.Printf("stats hot:  %#v", configFiles.CacheStats(groupcache.HotCache))
 
 		c.Data(http.StatusOK, http.DetectContentType(data), data)
 	})
@@ -139,7 +170,7 @@ func main() {
 	// start health server
 	//
 
-	app.serverHealth = newServer(healthAddr)
+	app.serverHealth = newServerGin(healthAddr)
 
 	log.Printf("registering route: %s %s", healthAddr, healthPath)
 	app.serverHealth.router.GET(healthPath, func(c *gin.Context) {
@@ -169,6 +200,7 @@ func shutdown(app *application) {
 	const timeout = 5 * time.Second
 	app.serverHealth.shutdown(timeout)
 	app.serverMain.shutdown(timeout)
+	app.serverGroupcache.shutdown(timeout)
 
 	log.Print("exiting")
 }
