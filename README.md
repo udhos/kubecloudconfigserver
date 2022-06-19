@@ -1,3 +1,7 @@
+[![license](http://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/udhos/kubecloudconfigserver/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/udhos/kubecloudconfigserver)](https://goreportcard.com/report/github.com/udhos/kubecloudconfigserver)
+[![Go Reference](https://pkg.go.dev/badge/github.com/udhos/kubecloudconfigserver.svg)](https://pkg.go.dev/github.com/udhos/kubecloudconfigserver)
+
 # kubecloudconfigserver
 
 Simple centralized cloud configuration server for Kubernetes in Go.
