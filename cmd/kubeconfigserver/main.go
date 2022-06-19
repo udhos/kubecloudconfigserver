@@ -36,11 +36,13 @@ func main() {
 
 	debug := env.Bool("DEBUG", true)
 
-	log.Printf("examples: export BACKEND=http://configserver:9000")
-	log.Printf("          export BACKEND=dir:samples")
+	log.Printf("backend http:                     export BACKEND=http://configserver:9000")
+	log.Printf("backend directory:                export BACKEND=dir:samples")
+	log.Printf("backend directory option flatten: export BACKEND_OPTIONS=flatten")
 
 	applicationAddr := env.String("LISTEN_ADDR", ":8080")
 	backendAddr := env.String("BACKEND", "dir:samples")
+	backendOptions := env.String("BACKEND_OPTIONS", "")
 	refreshAmqpURL := env.String("AMQP_URL", "amqp://guest:guest@rabbitmq:5672/")
 	refreshEnabled := env.Bool("REFRESH", false)
 	healthAddr := env.String("HEALTH_ADDR", ":3000")
@@ -50,7 +52,7 @@ func main() {
 	// create backend
 	//
 
-	storage := newBackend(backendAddr)
+	storage := newBackend(backendAddr, backendOptions)
 
 	//
 	// create groupcache pool

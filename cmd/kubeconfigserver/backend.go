@@ -13,25 +13,36 @@ type backend interface {
 	fetch(path string) ([]byte, error)
 }
 
-func newBackend(address string) backend {
+func newBackend(address, options string) backend {
 	if dir := strings.TrimPrefix(address, "dir:"); dir != address {
 		log.Printf("backend: %s: dir", address)
-		return &backendDir{dir}
+		return newBackendDir(dir, options)
 	}
 	log.Printf("backend: %s: http", address)
 	return &backendHTTP{address}
 }
 
 type backendDir struct {
-	dir string
+	dir     string
+	flatten bool // strip directory prefixes from requested path
+}
+
+func newBackendDir(dir, options string) *backendDir {
+	flatten := strings.Contains(options, "flatten")
+	return &backendDir{dir: dir, flatten: flatten}
 }
 
 func (b *backendDir) fetch(path string) ([]byte, error) {
-	filename := filepath.Base(path)
+	var filename string
+	if b.flatten {
+		filename = filepath.Base(path)
+	} else {
+		filename = path
+	}
 	fullpath := filepath.Join(b.dir, filename)
 	data, err := os.ReadFile(fullpath)
-	log.Printf("backendDir: path='%s' filename='%s' fullpath='%s' size=%d error:%v",
-		path, filename, fullpath, len(data), err)
+	log.Printf("backendDir: flatten=%t path='%s' filename='%s' fullpath='%s' size=%d error:%v",
+		b.flatten, path, filename, fullpath, len(data), err)
 	return data, err
 }
 
