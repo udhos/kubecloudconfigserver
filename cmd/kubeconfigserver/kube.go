@@ -144,8 +144,9 @@ func (k *kubeClient) listPodsAddresses() ([]string, error) {
 
 func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 
+	defer close(out) // notify readers
+
 	if !k.inCluster {
-		close(out) // notify readers
 		return nil // nothing to do
 	}
 
