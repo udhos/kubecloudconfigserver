@@ -65,7 +65,7 @@ func main() {
 	// start watcher for addresses of peers
 	//
 
-	go updatePeers(pool, applicationAddr)
+	go updatePeers(pool)
 
 	// https://talks.golang.org/2013/oscon-dl.slide#46
 	//

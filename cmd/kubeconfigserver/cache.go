@@ -41,7 +41,7 @@ func buildURL(addr string) string {
 	return "http://" + addr + groupcachePort
 }
 
-func updatePeers(pool *groupcache.HTTPPool, port string) {
+func updatePeers(pool *groupcache.HTTPPool) {
 
 	kc, errClient := newKubeClient()
 	if errClient != nil {
