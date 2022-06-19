@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +15,6 @@ import (
 	"github.com/golang/groupcache"
 	"github.com/udhos/kubecloudconfigserver/env"
 	"github.com/udhos/kubecloudconfigserver/refresh"
-	"golang.org/x/exp/maps"
 )
 
 const version = "0.0.0"
@@ -58,14 +56,14 @@ func main() {
 	// create groupcache pool
 	//
 
-	myURL := findMyURL(applicationAddr)
+	myURL := findMyURL()
 	pool := groupcache.NewHTTPPool(myURL)
 
 	//
 	// start watcher for addresses of peers
 	//
 
-	go updatePeers(pool, myURL, applicationAddr)
+	go updatePeers(pool, applicationAddr)
 
 	// https://talks.golang.org/2013/oscon-dl.slide#46
 	//
@@ -171,60 +169,4 @@ func shutdown(app *application) {
 	app.serverMain.shutdown(timeout)
 
 	log.Print("exiting")
-}
-
-func findMyURL(port string) string {
-	host, errHost := os.Hostname()
-	if errHost != nil {
-		log.Fatalf("findMyURL: hostname '%s': %v", host, errHost)
-	}
-	addrs, errAddr := net.LookupHost(host)
-	if errAddr != nil {
-		log.Fatalf("findMyURL: hostname '%s' lookup: %v", host, errAddr)
-	}
-	if len(addrs) < 1 {
-		log.Fatalf("findMyURL: hostname '%s': no addr found", host)
-	}
-	if len(addrs) > 1 {
-		log.Printf("findMyURL: hostname '%s': found multiple addresses: %v", host, addrs)
-	}
-	url := buildURL(addrs[0])
-	log.Printf("findMyURL: found: %s", url)
-	return url
-}
-
-const groupcachePort = ":5000"
-
-func buildURL(addr string) string {
-	return "http://" + addr + groupcachePort
-}
-
-func updatePeers(pool *groupcache.HTTPPool, myURL, port string) {
-
-	peers := map[string]bool{
-		myURL: true,
-	}
-
-	keys := maps.Keys(peers)
-	log.Printf("updatePeers: initial peers: %v", keys)
-	pool.Set(keys...)
-
-	ch := make(chan peerNotification)
-
-	go watchPeers(ch)
-
-	for n := range ch {
-		url := buildURL(n.address)
-		log.Printf("updatePeers: peer=%s added=%t", url, n.added)
-		if n.added {
-			peers[url] = true
-		} else {
-			delete(peers, url)
-		}
-		keys := maps.Keys(peers)
-		log.Printf("updatePeers: current peers: %v", keys)
-		pool.Set(keys...)
-	}
-
-	log.Fatal("updatePeers: channel has been closed")
 }
