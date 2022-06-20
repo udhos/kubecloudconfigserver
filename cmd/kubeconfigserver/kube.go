@@ -63,13 +63,23 @@ func (k *kubeClient) getPod() (*corev1.Pod, error) {
 		return nil, errors.New("missing pod name")
 	}
 
-	namespace := "" // search pod across all namespaces
+	namespace, errNs := findMyNamespace()
+	if errNs != nil {
+		log.Printf("getPod: could not find pod='%s' namespace: %v", podName, errNs)
+		return nil, errNs
+	}
+
 	pod, errPod := k.clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	if errPod != nil {
 		log.Printf("getPod: could not find pod name='%s': %v", podName, errPod)
 	}
 
 	return pod, errPod
+}
+
+func findMyNamespace() (string, error) {
+	buf, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	return string(buf), err
 }
 
 func isPodReady(pod *v1.Pod) bool {
