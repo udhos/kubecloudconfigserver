@@ -28,6 +28,9 @@ spec:
         name: kubecloudconfigserver
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+        env:
+        - name: BACKEND
+          value: http://configserver:9000
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler

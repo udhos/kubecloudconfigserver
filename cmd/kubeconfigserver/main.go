@@ -106,13 +106,15 @@ func main() {
 	//
 	// 64 MB max per-node memory usage
 	configFiles := groupcache.NewGroup("configfiles", 64<<20, groupcache.GetterFunc(
-		func(ctx groupcache.Context, key string, dest groupcache.Sink) error {
-			filename := key
+		func(ctx groupcache.Context, filename string, dest groupcache.Sink) error {
+			begin := time.Now()
 			data, errFetch := storage.fetch(filename)
 			if errFetch != nil {
 				log.Printf("fetch: filename='%s': error: %v", filename, errFetch)
 				return errFetch
 			}
+			elap := time.Since(begin)
+			log.Printf("fetch: filename='%s': size:%d elapsed:%v", filename, len(data), elap)
 			var expire time.Time // zero value for expire means no expiration
 			if ttl != 0 {
 				expire = time.Now().Add(ttl)
