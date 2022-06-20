@@ -52,6 +52,8 @@ func updatePeers(pool *groupcache.HTTPPool, groupcachePort string) {
 		log.Fatalf("updatePeers: list addresses: %v", errList)
 	}
 
+	addresses = append(addresses, findMyAddr()) // force my own addr
+
 	peers := map[string]bool{}
 
 	for _, addr := range addresses {
