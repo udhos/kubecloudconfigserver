@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,32 +125,83 @@ func (k *kubeClient) getPodInfo() (*podInfo, error) {
 
 func (k *kubeClient) listPodsAddresses() ([]string, error) {
 
+	/*
+		if !k.inCluster {
+			return []string{findMyAddr()}, nil
+		}
+
+		podInfo, errInfo := k.getPodInfo()
+		if errInfo != nil {
+			log.Printf("listPodsAddresses: pod info: %v", errInfo)
+			return nil, errInfo
+		}
+
+		pods, errList := k.clientset.CoreV1().Pods(podInfo.namespace).List(context.TODO(), podInfo.listOptions)
+		if errList != nil {
+			log.Printf("listPodsAddresses: list pods: %v", errList)
+			return nil, errList
+		}
+
+		var podList []string
+
+		for _, p := range pods.Items {
+			if isPodReady(&p) {
+				addr := p.Status.PodIP
+				podList = append(podList, addr)
+			}
+		}
+
+		return podList, nil
+	*/
+
+	table, errTable := k.getPodTable()
+	if errTable != nil {
+		log.Printf("listPodsAddresses: pod table: %v", errTable)
+		return nil, errTable
+	}
+
+	return maps.Values(table), nil
+}
+
+func (k *kubeClient) getPodTable() (map[string]string, error) {
+
+	table := map[string]string{}
+
 	if !k.inCluster {
-		return []string{findMyAddr()}, nil
+		name := k.getPodName()
+		if name == "" {
+			return nil, errors.New("getPodTable: out-of-cluster: missing pod name")
+		}
+		addr := findMyAddr()
+		if addr == "" {
+			return nil, errors.New("getPodTable: out-of-cluster: missing pod address")
+		}
+		table[name] = addr
+		return table, nil
 	}
 
 	podInfo, errInfo := k.getPodInfo()
 	if errInfo != nil {
-		log.Printf("listPodsAddresses: pod info: %v", errInfo)
+		log.Printf("getPodTable: pod info: %v", errInfo)
 		return nil, errInfo
 	}
 
 	pods, errList := k.clientset.CoreV1().Pods(podInfo.namespace).List(context.TODO(), podInfo.listOptions)
 	if errList != nil {
-		log.Printf("listPodsAddresses: list pods: %v", errList)
+		log.Printf("getPodTable: list pods: %v", errList)
 		return nil, errList
 	}
 
-	var podList []string
-
 	for _, p := range pods.Items {
-		if isPodReady(&p) {
-			addr := p.Status.PodIP
-			podList = append(podList, addr)
+		if !isPodReady(&p) {
+			continue
 		}
+		name := p.ObjectMeta.Name
+		addr := p.Status.PodIP
+		table[name] = addr
 	}
 
-	return podList, nil
+	return table, nil
 }
 
 func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
@@ -160,11 +212,20 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 		return nil // nothing to do
 	}
 
+	// some going down events don't report pod address, so we retrieve addr from a local table
+	table, errTable := k.getPodTable()
+	if errTable != nil {
+		log.Printf("watchPodsAddresses: table: %v", errTable)
+		return errTable
+	}
+
 	podInfo, errInfo := k.getPodInfo()
 	if errInfo != nil {
 		log.Printf("watchPodsAddresses: pod info: %v", errInfo)
 		return errInfo
 	}
+
+	myPodName := podInfo.name
 
 	watch, errWatch := k.clientset.CoreV1().Pods(podInfo.namespace).Watch(context.TODO(), podInfo.listOptions)
 	if errWatch != nil {
@@ -180,18 +241,36 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 			continue
 		}
 
+		name := pod.Name
+
 		addr := pod.Status.PodIP
+		if addr == "" {
+			// some going down events don't report pod address, so we retrieve it from a local table
+			addr = table[name]
+		}
+
 		ready := isPodReady(pod)
 
 		log.Printf("watchPodsAddresses: event=%s pod=%s addr=%s ready=%t",
-			event.Type, pod.Name, addr, ready)
+			event.Type, name, addr, ready)
 
-		if pod.Name == podInfo.name {
-			continue // ignore my pod
+		if name == myPodName {
+			continue // ignore my own pod
 		}
 
 		if event.Type != "MODIFIED" {
 			continue // ignore other event types
+		}
+
+		if addr == "" {
+			continue // ignore empty address
+		}
+
+		if ready {
+			// record address for future going down events that don't report pod address
+			table[name] = addr
+		} else {
+			delete(table, name)
 		}
 
 		out <- podAddress{address: addr, added: ready}
