@@ -71,7 +71,8 @@ func updatePeers(pool *groupcache.HTTPPool, groupcachePort string) {
 
 	for n := range ch {
 		url := buildURL(n.address, groupcachePort)
-		log.Printf("updatePeers: peer=%s added=%t", url, n.added)
+		log.Printf("updatePeers: peer=%s added=%t current peers: %v",
+			url, n.added, maps.Keys(peers))
 		count := len(peers)
 		if n.added {
 			peers[url] = true
@@ -82,7 +83,7 @@ func updatePeers(pool *groupcache.HTTPPool, groupcachePort string) {
 			continue
 		}
 		keys := maps.Keys(peers)
-		log.Printf("updatePeers: current peers: %v", keys)
+		log.Printf("updatePeers: updating peers: %v", keys)
 		pool.Set(keys...)
 	}
 
