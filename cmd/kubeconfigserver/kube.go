@@ -219,6 +219,8 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 		return errTable
 	}
 
+	log.Printf("watchPodsAddresses: initial table: %v", table)
+
 	podInfo, errInfo := k.getPodInfo()
 	if errInfo != nil {
 		log.Printf("watchPodsAddresses: pod info: %v", errInfo)
@@ -258,20 +260,17 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 			continue // ignore my own pod
 		}
 
-		if event.Type != "MODIFIED" {
-			continue // ignore other event types
+		if event.Type == "DELETED" {
+			// pod name/address no longer needed
+			delete(table, name)
 		}
 
 		if addr == "" {
 			continue // ignore empty address
 		}
 
-		if ready {
-			// record address for future going down events that don't report pod address
-			table[name] = addr
-		} else {
-			delete(table, name)
-		}
+		// record address for future going down events that don't report pod address
+		table[name] = addr
 
 		out <- podAddress{address: addr, added: ready}
 	}
