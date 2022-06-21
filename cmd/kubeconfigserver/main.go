@@ -255,6 +255,7 @@ func shutdown(app *application) {
 
 	const timeout = 5 * time.Second
 	app.serverHealth.shutdown(timeout)
+	app.serverMetrics.shutdown(timeout)
 	app.serverMain.shutdown(timeout)
 	app.serverGroupcache.shutdown(timeout)
 
