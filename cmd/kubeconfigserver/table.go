@@ -34,7 +34,7 @@ func (t *table) match(app string) []string {
 	defer t.mutex.Unlock()
 	var keys []string
 	for k := range t.tab {
-		if refresh_match(app, k) {
+		if refreshMatch(app, k) {
 			keys = append(keys, k)
 		}
 	}
