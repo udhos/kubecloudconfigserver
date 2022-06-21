@@ -34,13 +34,28 @@ func (t *table) match(app string) []string {
 	defer t.mutex.Unlock()
 	var keys []string
 	for k := range t.tab {
-		// k: /path/to/config1-default.yml,config2-default.yml,config3-default.yml
-		base := filepath.Base(k)
-		// base: config1-default.yml,config2-default.yml,config3-default.yml
-		// app: config2
-		if strings.Contains(base, app) {
+		if refresh_match(app, k) {
 			keys = append(keys, k)
 		}
 	}
 	return keys
+}
+
+func refreshMatch(app, key string) bool {
+	app = strings.TrimSuffix(app, ":**")    // "config:file2:**" -> "config:file2"
+	app = strings.Replace(app, ":", "-", 1) // "config:file2" -> "config-file2"
+
+	// "/path/to/config-file1-default.yml,config-file2-default.yml,config-file3-default.yml" ->
+	// "config-file1-default.yml,config-file2-default.yml,config-file3-default.yml"
+	base := filepath.Base(key)
+
+	// "config-file1-default.yml,config-file2-default.yml,config-file3-default.yml" ->
+	// "config-file1-default.yml"
+	keyFiles := strings.Split(base, ",")
+	for _, kf := range keyFiles {
+		if strings.HasPrefix(kf, app) {
+			return true
+		}
+	}
+	return false
 }

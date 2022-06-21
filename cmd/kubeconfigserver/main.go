@@ -144,6 +144,7 @@ func main() {
 
 		go func() {
 			for app := range refresher.C {
+				// app = "config-cli-example:**"
 				log.Printf("refresh: received notification for application='%s'", app)
 				for _, key := range tableKeys.match(app) {
 					log.Printf("refresh: removing key='%s' for application='%s'", key, app)
