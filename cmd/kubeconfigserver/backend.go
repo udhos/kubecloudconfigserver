@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type backendError struct {
@@ -15,8 +17,25 @@ type backendError struct {
 	err    error
 }
 
+func sendBackendError(c *gin.Context, err backendError) {
+	switch err.status {
+	case http.StatusNotFound:
+		c.String(http.StatusNotFound, "not found")
+		return
+	}
+	c.String(http.StatusBadGateway, "error status from backend: %d", err.status)
+}
+
+func httpSuccess(status int) bool {
+	return status == 0 || (status >= 200 && status < 300)
+}
+
+func noError(status int, err error) bool {
+	return err == nil && httpSuccess(status)
+}
+
 func newBackendError(status int, err error) error {
-	if status == 0 && err == nil {
+	if noError(status, err) {
 		return nil
 	}
 	return backendError{
@@ -26,7 +45,7 @@ func newBackendError(status int, err error) error {
 }
 
 func (e backendError) Error() string {
-	if e.status == 0 && e.err == nil {
+	if noError(e.status, e.err) {
 		return "<nil>"
 	}
 	var msg string
