@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -8,6 +9,34 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+type backendError struct {
+	status int
+	err    error
+}
+
+func newBackendError(status int, err error) error {
+	if status == 0 && err == nil {
+		return nil
+	}
+	return backendError{
+		status: status,
+		err:    err,
+	}
+}
+
+func (e backendError) Error() string {
+	if e.status == 0 && e.err == nil {
+		return "<nil>"
+	}
+	var msg string
+	if e.err == nil {
+		msg = "<nil>"
+	} else {
+		msg = e.err.Error()
+	}
+	return fmt.Sprintf("backendError: status:%d error:%s", e.status, msg)
+}
 
 type backend interface {
 	fetch(path string) ([]byte, error)
@@ -33,6 +62,7 @@ func newBackendDir(dir, options string) *backendDir {
 }
 
 func (b *backendDir) fetch(path string) ([]byte, error) {
+	var status int
 	var filename string
 	if b.flatten {
 		filename = filepath.Base(path)
@@ -41,9 +71,12 @@ func (b *backendDir) fetch(path string) ([]byte, error) {
 	}
 	fullpath := filepath.Join(b.dir, filename)
 	data, err := os.ReadFile(fullpath)
-	log.Printf("backendDir: flatten=%t path='%s' filename='%s' fullpath='%s' size=%d error:%v",
-		b.flatten, path, filename, fullpath, len(data), err)
-	return data, err
+	if err != nil && strings.Contains(err.Error(), "no such file or directory") {
+		status = http.StatusNotFound
+	}
+	log.Printf("backendDir: flatten=%t path='%s' filename='%s' fullpath='%s' size=%d status=%d error:%v",
+		b.flatten, path, filename, fullpath, len(data), status, err)
+	return data, newBackendError(status, err)
 }
 
 type backendHTTP struct {
@@ -51,16 +84,18 @@ type backendHTTP struct {
 }
 
 func (b *backendHTTP) fetch(path string) ([]byte, error) {
+	var status int
 	url := b.host + path
 	resp, errGet := http.Get(url)
 	if errGet != nil {
 		log.Printf("backendHTTP: path='%s' url='%s' error: %v",
 			path, url, errGet)
-		return nil, errGet
+		return nil, newBackendError(status, errGet)
 	}
 	defer resp.Body.Close()
+	status = resp.StatusCode
 	data, errRead := io.ReadAll(resp.Body)
-	log.Printf("backendHTTP: path='%s' url='%s' size=%d error:%v",
-		path, url, len(data), errRead)
-	return data, errRead
+	log.Printf("backendHTTP: path='%s' url='%s' size=%d status=%d error:%v",
+		path, url, len(data), status, errRead)
+	return data, newBackendError(status, errRead)
 }

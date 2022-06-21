@@ -20,8 +20,16 @@ spec:
       creationTimestamp: null
       labels:
         app: kubeconfigserver
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "3000"
+        prometheus.io/scrape: "true"
     spec:
       serviceAccountName: kubeconfigserver
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
       containers:
       - image: udhos/kubecloudconfigserver:0.0.0
         imagePullPolicy: Always
@@ -31,7 +39,39 @@ spec:
         env:
         - name: BACKEND
           value: http://configserver:9000
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      schedulerName: default-scheduler
-      terminationGracePeriodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+            ephemeral-storage: "200Mi"
+          limits:
+            cpu: 200m
+            memory: 200Mi
+            ephemeral-storage: "300Mi"
+        startupProbe:
+          # must initialize within 3*100=300 seconds
+          httpGet:
+            path: /health
+            port: 8888
+          periodSeconds: 3
+          failureThreshold: 100
+        readinessProbe:
+          # not ready after 10*6=60 seconds without success
+          httpGet:
+            path: /health
+            port: 8888
+            scheme: HTTP
+          periodSeconds: 10
+          failureThreshold: 6
+          successThreshold: 1
+          timeoutSeconds: 5
+        livenessProbe:
+          # kill after 20*6=120 seconds without success
+          httpGet:
+            path: /health
+            port: 8888
+            scheme: HTTP
+          periodSeconds: 20
+          failureThreshold: 6
+          successThreshold: 1
+          timeoutSeconds: 10

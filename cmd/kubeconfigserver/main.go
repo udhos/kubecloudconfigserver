@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	//"github.com/golang/groupcache"
 	"github.com/mailgun/groupcache"
 	"github.com/udhos/kubecloudconfigserver/env"
@@ -25,6 +27,7 @@ const version = "0.0.0"
 type application struct {
 	serverMain       *serverGin
 	serverHealth     *serverGin
+	serverMetrics    *serverGin
 	serverGroupcache *serverHttp
 	me               string
 }
@@ -66,8 +69,10 @@ func main() {
 	backendOptions := env.String("BACKEND_OPTIONS", "")
 	refreshAmqpURL := env.String("AMQP_URL", "amqp://guest:guest@rabbitmq:5672/")
 	refreshEnabled := env.Bool("REFRESH", true)
-	healthAddr := env.String("HEALTH_ADDR", ":3000")
+	healthAddr := env.String("HEALTH_ADDR", ":8888")
 	healthPath := env.String("HEALTH_PATH", "/health")
+	metricsAddr := env.String("METRICS_ADDR", ":3000")
+	metricsPath := env.String("METRICS_PATH", "/metrics")
 	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
 	ttl := env.Duration("TTL", time.Duration(0))
 
@@ -160,16 +165,24 @@ func main() {
 	//
 
 	app.serverMain = newServerGin(applicationAddr)
+	app.serverMain.router.Use(metricsMiddleware())
+	app.serverMain.router.Use(gin.Logger())
 
 	const pathAny = "/*anything"
 	log.Printf("registering route: %s %s", applicationAddr, pathAny)
 	app.serverMain.router.GET(pathAny, func(c *gin.Context) {
 		path := c.Param("anything")
-		log.Printf("path: '%s'", path)
 
 		var data []byte
-		if errGet := configFiles.Get(context.TODO(), path, groupcache.AllocatingByteSliceSink(&data)); errGet != nil {
-			log.Printf("groupcache.Get: %v", errGet)
+		errGet := configFiles.Get(context.TODO(), path, groupcache.AllocatingByteSliceSink(&data))
+		log.Printf("groupcache.Get: path='%s' error:%v", path, errGet)
+		if errGet != nil {
+			if errBackend, isBackend := errGet.(backendError); isBackend {
+				if errBackend.status == http.StatusNotFound {
+					c.String(http.StatusNotFound, "not found")
+					return
+				}
+			}
 			c.String(http.StatusInternalServerError, "server error")
 			return
 		}
@@ -207,6 +220,22 @@ func main() {
 		log.Printf("health server: listening on %s", healthAddr)
 		err := app.serverHealth.server.ListenAndServe()
 		log.Printf("health server: exited: %v", err)
+	}()
+
+	//
+	// start metrics server
+	//
+
+	app.serverMetrics = newServerGin(metricsAddr)
+
+	go func() {
+		prom := promhttp.Handler()
+		app.serverMetrics.router.GET(metricsPath, func(c *gin.Context) {
+			prom.ServeHTTP(c.Writer, c.Request)
+		})
+		log.Printf("metrics server: listening on %s %s", metricsAddr, metricsPath)
+		err := app.serverMetrics.server.ListenAndServe()
+		log.Printf("metrics server: exited: %v", err)
 	}()
 
 	//
