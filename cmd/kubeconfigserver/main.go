@@ -28,7 +28,7 @@ type application struct {
 	serverMain       *serverGin
 	serverHealth     *serverGin
 	serverMetrics    *serverGin
-	serverGroupcache *serverHttp
+	serverGroupcache *serverHTTP
 	me               string
 }
 
@@ -93,7 +93,7 @@ func main() {
 	// start groupcache server
 	//
 
-	app.serverGroupcache = newServerHttp(groupcachePort, pool)
+	app.serverGroupcache = newServerHTTP(groupcachePort, pool)
 
 	go func() {
 		log.Printf("groupcache server: listening on %s", groupcachePort)

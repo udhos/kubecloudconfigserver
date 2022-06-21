@@ -16,12 +16,12 @@ type server interface {
 }
 */
 
-type serverHttp struct {
+type serverHTTP struct {
 	server *http.Server
 }
 
-func newServerHttp(addr string, handler http.Handler) *serverHttp {
-	return &serverHttp{
+func newServerHTTP(addr string, handler http.Handler) *serverHTTP {
+	return &serverHTTP{
 		server: &http.Server{Addr: addr, Handler: handler},
 	}
 }
@@ -32,7 +32,7 @@ func (s *serverHttp) getServer() *http.Server {
 }
 */
 
-func (s *serverHttp) shutdown(timeout time.Duration) {
+func (s *serverHTTP) shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := s.server.Shutdown(ctx); err != nil {

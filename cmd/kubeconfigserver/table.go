@@ -33,7 +33,7 @@ func (t *table) match(app string) []string {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	var keys []string
-	for k, _ := range t.tab {
+	for k := range t.tab {
 		// k: /path/to/config1-default.yml,config2-default.yml,config3-default.yml
 		base := filepath.Base(k)
 		// base: config1-default.yml,config2-default.yml,config3-default.yml
