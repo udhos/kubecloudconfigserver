@@ -179,8 +179,12 @@ func main() {
 		log.Printf("groupcache.Get: path='%s' error:%v", path, errGet)
 		if errGet != nil {
 			if errBackend, isBackend := errGet.(backendError); isBackend {
-				if errBackend.status == http.StatusNotFound {
+				switch errBackend.status {
+				case http.StatusNotFound:
 					c.String(http.StatusNotFound, "not found")
+					return
+				default:
+					c.String(http.StatusBadGateway, "error status from backend: %d", errBackend.status)
 					return
 				}
 			}
