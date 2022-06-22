@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"time"
 
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
@@ -227,11 +228,26 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 		return errInfo
 	}
 
-	myPodName := podInfo.name
+	const cooldown = 5 * time.Second
+	for {
+		errWatch := k.watchOnce(out, podInfo, table)
+		log.Printf("watchPodsAddresses: %v", errWatch)
+		if errWatch != errWatchInputChannelClose {
+			return errWatch
+		}
+		log.Printf("watchPodsAddresses: retrying in %v", cooldown)
+		time.Sleep(cooldown)
+	}
+}
 
-	watch, errWatch := k.clientset.CoreV1().Pods(podInfo.namespace).Watch(context.TODO(), podInfo.listOptions)
+var errWatchInputChannelClose = errors.New("watchOnce: input channel has been closed")
+
+func (k *kubeClient) watchOnce(out chan<- podAddress, info *podInfo, table map[string]string) error {
+	myPodName := info.name
+
+	watch, errWatch := k.clientset.CoreV1().Pods(info.namespace).Watch(context.TODO(), info.listOptions)
 	if errWatch != nil {
-		log.Printf("watchPodsAddresses: watch: %v", errWatch)
+		log.Printf("watchOnce: watch: %v", errWatch)
 		return errWatch
 	}
 
@@ -239,7 +255,7 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 	for event := range in {
 		pod, ok := event.Object.(*v1.Pod)
 		if !ok {
-			log.Printf("watchPodsAddresses: unexpected event object: %v", event.Object)
+			log.Printf("watchOnce: unexpected event object: %v", event.Object)
 			continue
 		}
 
@@ -253,7 +269,7 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 
 		ready := isPodReady(pod)
 
-		log.Printf("watchPodsAddresses: event=%s pod=%s addr=%s ready=%t",
+		log.Printf("watchOnce: event=%s pod=%s addr=%s ready=%t",
 			event.Type, name, addr, ready)
 
 		if name == myPodName {
@@ -275,9 +291,7 @@ func (k *kubeClient) watchPodsAddresses(out chan<- podAddress) error {
 		out <- podAddress{address: addr, added: ready}
 	}
 
-	errClosed := errors.New("watchPodsAddresses: input channel has been closed")
-	log.Fatalf(errClosed.Error())
-	return errClosed
+	return errWatchInputChannelClose
 }
 
 type podAddress struct {

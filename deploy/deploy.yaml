@@ -39,7 +39,7 @@ spec:
         terminationMessagePolicy: File
         env:
         - name: BACKEND
-          value: http://config-server:9000
+          value: http://config-server:8080
         - name: TTL
           value: 300s
         resources:
