@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,17 +105,22 @@ type backendHTTP struct {
 
 func (b *backendHTTP) fetch(path string) ([]byte, error) {
 	var status int
-	url := b.host + path
-	resp, errGet := http.Get(url)
+	u, errJoin := url.JoinPath(b.host, path)
+	if errJoin != nil {
+		log.Printf("backendHTTP: path='%s' error: %v",
+			path, errJoin)
+		return nil, newBackendError(status, errJoin)
+	}
+	resp, errGet := http.Get(u)
 	if errGet != nil {
 		log.Printf("backendHTTP: path='%s' url='%s' error: %v",
-			path, url, errGet)
+			path, u, errGet)
 		return nil, newBackendError(status, errGet)
 	}
 	defer resp.Body.Close()
 	status = resp.StatusCode
 	data, errRead := io.ReadAll(resp.Body)
 	log.Printf("backendHTTP: path='%s' url='%s' size=%d status=%d error:%v",
-		path, url, len(data), status, errRead)
+		path, u, len(data), status, errRead)
 	return data, newBackendError(status, errRead)
 }
