@@ -162,7 +162,15 @@ func main() {
 				elap := time.Since(begin)
 				log.Printf("fetch: filename='%s': size:%d elapsed:%v", filename, len(data), elap)
 			*/
-			data, errFetch := fetch(ctx.(context.Context), storage, filename)
+
+			var newCtx context.Context
+			if ctx == nil {
+				newCtx = context.Background()
+			} else {
+				newCtx = ctx.(context.Context)
+			}
+
+			data, errFetch := fetch(newCtx, storage, filename)
 			if errFetch != nil {
 				return errFetch
 			}
