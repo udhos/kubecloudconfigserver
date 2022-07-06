@@ -231,7 +231,7 @@ func main() {
 
 		if !cache {
 			// cache disabled
-			data, errFetch := fetch(ctx.(context.Context), storage, path)
+			data, errFetch := fetch(ctx, storage, path)
 			if errFetch != nil {
 				span.SetStatus(codes.Error, errFetch.Error())
 				c.String(http.StatusInternalServerError, "fetch error")
