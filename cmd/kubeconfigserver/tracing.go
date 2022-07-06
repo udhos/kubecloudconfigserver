@@ -12,6 +12,21 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 )
 
+/*
+Open Telemetry tracing with Gin:
+
+1) Initialize the tracing (see main.go)
+2) Enable trace propagation (see tracePropagation below)
+3) Use handler middleware (see main.go)
+   import "go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+   router.Use(otelgin.Middleware("virtual-service"))
+4) For http client, create a Request from Context (see backend.go)
+   newCtx, span := b.tracer.Start(ctx, "backendHTTP.fetch")
+   req, errReq := http.NewRequestWithContext(newCtx, "GET", u, nil)
+   client := http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+   resp, errGet := client.Do(req)
+*/
+
 func tracerProvider(service, url string) (*tracesdk.TracerProvider, error) {
 	log.Printf("tracerProvider: service=%s collector=%s", service, url)
 
