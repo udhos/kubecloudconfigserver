@@ -15,6 +15,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	//"github.com/golang/groupcache"
 	"github.com/mailgun/groupcache"
@@ -75,12 +79,48 @@ func main() {
 	metricsPath := env.String("METRICS_PATH", "/metrics")
 	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
 	ttl := env.Duration("TTL", time.Duration(0))
+	jaegerURL := env.String("JAEGER_URL", "http://jaeger-collector:14268/api/traces")
+	cache := env.Bool("CACHE", true)
+
+	//
+	// initialize tracing
+	//
+
+	var tracer trace.Tracer
+
+	{
+		tp, errTracer := tracerProvider(app.me, jaegerURL)
+		if errTracer != nil {
+			log.Fatal(errTracer)
+		}
+
+		// Register our TracerProvider as the global so any imported
+		// instrumentation in the future will default to using it.
+		otel.SetTracerProvider(tp)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Cleanly shutdown and flush telemetry when the application exits.
+		defer func(ctx context.Context) {
+			// Do not make the application hang when it is shutdown.
+			ctx, cancel = context.WithTimeout(ctx, time.Second*5)
+			defer cancel()
+			if err := tp.Shutdown(ctx); err != nil {
+				log.Fatal(err)
+			}
+		}(ctx)
+
+		tracePropagation()
+
+		tracer = tp.Tracer("component-main")
+	}
 
 	//
 	// create backend
 	//
 
-	storage := newBackend(backendAddr, backendOptions)
+	storage := newBackend(tracer, backendAddr, backendOptions)
 
 	//
 	// create groupcache pool
@@ -112,14 +152,20 @@ func main() {
 	// 64 MB max per-node memory usage
 	configFiles := groupcache.NewGroup("configfiles", 64<<20, groupcache.GetterFunc(
 		func(ctx groupcache.Context, filename string, dest groupcache.Sink) error {
-			begin := time.Now()
-			data, errFetch := storage.fetch(filename)
+			/*
+				begin := time.Now()
+				data, errFetch := storage.fetch(ctx.(context.Context), filename)
+				if errFetch != nil {
+					log.Printf("fetch: filename='%s': error: %v", filename, errFetch)
+					return errFetch
+				}
+				elap := time.Since(begin)
+				log.Printf("fetch: filename='%s': size:%d elapsed:%v", filename, len(data), elap)
+			*/
+			data, errFetch := fetch(ctx.(context.Context), storage, filename)
 			if errFetch != nil {
-				log.Printf("fetch: filename='%s': error: %v", filename, errFetch)
 				return errFetch
 			}
-			elap := time.Since(begin)
-			log.Printf("fetch: filename='%s': size:%d elapsed:%v", filename, len(data), elap)
 			var expire time.Time // zero value for expire means no expiration
 			if ttl != 0 {
 				expire = time.Now().Add(ttl)
@@ -168,20 +214,44 @@ func main() {
 	app.serverMain = newServerGin(applicationAddr)
 	app.serverMain.router.Use(metricsMiddleware())
 	app.serverMain.router.Use(gin.Logger())
+	app.serverMain.router.Use(otelgin.Middleware(app.me))
 
 	const pathAny = "/*anything"
 	log.Printf("registering route: %s %s", applicationAddr, pathAny)
 	app.serverMain.router.GET(pathAny, func(c *gin.Context) {
+
 		path := c.Param("anything")
 
+		ctx := c.Request.Context()
+
+		newCtx, span := tracer.Start(ctx, "request")
+		defer span.End()
+
+		log.Printf("traceID=%s", span.SpanContext().TraceID())
+
+		if !cache {
+			// cache disabled
+			data, errFetch := fetch(ctx.(context.Context), storage, path)
+			if errFetch != nil {
+				span.SetStatus(codes.Error, errFetch.Error())
+				c.String(http.StatusInternalServerError, "fetch error")
+				return
+			}
+
+			c.Data(http.StatusOK, http.DetectContentType(data), data)
+			return
+		}
+
 		var data []byte
-		errGet := configFiles.Get(context.TODO(), path, groupcache.AllocatingByteSliceSink(&data))
+		errGet := configFiles.Get(newCtx, path, groupcache.AllocatingByteSliceSink(&data))
 		log.Printf("groupcache.Get: path='%s' error:%v", path, errGet)
 		if errGet != nil {
 			if errBackend, isBackend := errGet.(backendError); isBackend {
+				span.SetStatus(codes.Error, errBackend.Error())
 				sendBackendError(c, errBackend)
 				return
 			}
+			span.SetStatus(codes.Error, errGet.Error())
 			c.String(http.StatusInternalServerError, "server error")
 			return
 		}
@@ -242,6 +312,18 @@ func main() {
 	//
 
 	shutdown(app)
+}
+
+func fetch(ctx context.Context, storage backend, filename string) ([]byte, error) {
+	begin := time.Now()
+	data, errFetch := storage.fetch(ctx, filename)
+	if errFetch != nil {
+		log.Printf("fetch: filename='%s': error: %v", filename, errFetch)
+		return data, errFetch
+	}
+	elap := time.Since(begin)
+	log.Printf("fetch: filename='%s': size:%d elapsed:%v", filename, len(data), elap)
+	return data, nil
 }
 
 func shutdown(app *application) {
