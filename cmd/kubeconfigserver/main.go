@@ -143,7 +143,7 @@ func main() {
 
 	log.Printf("groupcache my URL: %s", myURL)
 
-	pool := groupcache.NewHTTPPool(myURL)
+	pool := groupcache.NewHTTPPoolOpts(myURL, &groupcache.HTTPPoolOptions{})
 
 	//
 	// start groupcache server
