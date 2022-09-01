@@ -15,13 +15,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/udhos/kubegroup/kubegroup"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	//"github.com/golang/groupcache"
-	"github.com/mailgun/groupcache"
+	"github.com/mailgun/groupcache" //"github.com/golang/groupcache"
 	"github.com/udhos/kubecloudconfigserver/env"
 	"github.com/udhos/kubecloudconfigserver/refresh"
 )
@@ -126,7 +126,23 @@ func main() {
 	// create groupcache pool
 	//
 
-	myURL := findMyURL(groupcachePort)
+	var myURL string
+	for myURL == "" {
+		var errURL error
+		myURL, errURL = kubegroup.FindMyURL(groupcachePort)
+		if errURL != nil {
+			log.Printf("my URL: %v", errURL)
+		}
+		if myURL == "" {
+			const cooldown = 5 * time.Second
+			log.Printf("could not find my URL, sleeping %v", cooldown)
+			time.Sleep(cooldown)
+		}
+		//log.Printf("u=%v err=%v", myURL, errURL)
+	}
+
+	log.Printf("groupcache my URL: %s", myURL)
+
 	pool := groupcache.NewHTTPPool(myURL)
 
 	//
@@ -145,7 +161,7 @@ func main() {
 	// start watcher for addresses of peers
 	//
 
-	go updatePeers(pool, groupcachePort)
+	go kubegroup.UpdatePeers(pool, groupcachePort)
 
 	// https://talks.golang.org/2013/oscon-dl.slide#46
 	//
