@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/segmentio/ksuid"
 )
 
 // Refresh holds data for worker that reads events from amqp and delivers applications found in channel `Refresh.C`.
@@ -94,6 +96,19 @@ func (r *Refresh) hasExited() bool {
 	return r.exited
 }
 
+func newUID() string {
+	const cooldown = 5 * time.Second
+	for {
+		k, err := ksuid.NewRandom()
+		if err != nil {
+			log.Printf("newUID: ksuid: %v, sleeping for %v", err, cooldown)
+			time.Sleep(cooldown)
+			continue
+		}
+		return k.String()
+	}
+}
+
 // serve one amqp connection
 func serveOnce(r *Refresh, connCount int, begin time.Time) {
 
@@ -101,7 +116,7 @@ func serveOnce(r *Refresh, connCount int, begin time.Time) {
 
 	exchangeName := "springCloudBus"
 	exchangeType := "topic"
-	queue := "config-event-queue"
+	queue := "kubeconfigserver." + newUID()
 
 	log.Printf("%s: connection count:    %d", me, connCount)
 	log.Printf("%s: amqp URL:            %s", me, r.amqpURL)
@@ -144,10 +159,11 @@ func serveOnce(r *Refresh, connCount int, begin time.Time) {
 		return
 	}
 
-	for _, app := range r.applications {
+	{
+		const routingKey = "#"
 		log.Printf("%s: declared queue (%d messages, %d consumers), binding to exchange '%s' with binding key '%s'",
-			me, q.Messages, q.Consumers, exchangeName, app)
-		err := r.amqpClient.queueBind(ch, q.Name, app, exchangeName)
+			me, q.Messages, q.Consumers, exchangeName, routingKey)
+		err := r.amqpClient.queueBind(ch, q.Name, routingKey, exchangeName)
 		if err != nil {
 			log.Printf("%s: failed to bind queue to exchange: %v", me, err)
 			return
