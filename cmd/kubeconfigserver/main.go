@@ -26,7 +26,7 @@ import (
 	"github.com/udhos/kubecloudconfigserver/refresh"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 type application struct {
 	serverMain       *serverGin

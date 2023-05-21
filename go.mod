@@ -11,7 +11,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.3.4
 	github.com/segmentio/ksuid v1.0.4
 	github.com/udhos/boilerplate v1.0.1
-	github.com/udhos/kubegroup v0.0.0-20220901020929-5ad78f31050e
+	github.com/udhos/kubegroup v0.1.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.32.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.32.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.7.0

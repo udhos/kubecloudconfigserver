@@ -10,7 +10,6 @@ RUN apk add git
 
 RUN adduser -D -g '' user
 COPY ./cmd/ /tmp/kubecloudconfigserver/cmd
-COPY ./env/ /tmp/kubecloudconfigserver/env
 COPY ./refresh/ /tmp/kubecloudconfigserver/refresh
 COPY go.* /tmp/kubecloudconfigserver/
 RUN find /tmp/kubecloudconfigserver
