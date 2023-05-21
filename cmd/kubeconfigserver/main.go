@@ -10,12 +10,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/udhos/boilerplate/boilerplate"
 	"github.com/udhos/kubegroup/kubegroup"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
@@ -37,11 +37,6 @@ type application struct {
 	config           appConfig
 }
 
-func getVersion(me string) string {
-	return fmt.Sprintf("%s version=%s runtime=%s GOOS=%s GOARCH=%s GOMAXPROCS=%d",
-		me, version, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.GOMAXPROCS(0))
-}
-
 func main() {
 
 	app := &application{
@@ -53,7 +48,7 @@ func main() {
 	flag.Parse()
 
 	{
-		v := getVersion(app.me)
+		v := boilerplate.LongVersion(app.me + " version=" + version)
 		if showVersion {
 			fmt.Print(v)
 			fmt.Println()
