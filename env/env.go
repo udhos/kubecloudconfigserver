@@ -1,3 +1,4 @@
+// Package env helps to load config from env vars.
 package env
 
 import (

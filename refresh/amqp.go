@@ -1,3 +1,4 @@
+// Package refresh reads config refresh notification from AMQP.
 package refresh
 
 import (

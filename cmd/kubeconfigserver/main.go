@@ -1,3 +1,4 @@
+// Package main implements the tool.
 package main
 
 import (
@@ -22,11 +23,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mailgun/groupcache" //"github.com/golang/groupcache"
-	"github.com/udhos/kubecloudconfigserver/env"
 	"github.com/udhos/kubecloudconfigserver/refresh"
 )
 
-const version = "0.0.3"
+const version = "0.1.0"
 
 type application struct {
 	serverMain       *serverGin
@@ -34,6 +34,7 @@ type application struct {
 	serverMetrics    *serverGin
 	serverGroupcache *serverHTTP
 	me               string
+	config           appConfig
 }
 
 func getVersion(me string) string {
@@ -67,20 +68,7 @@ func main() {
 	log.Printf("backend directory option flatten: export BACKEND_OPTIONS=flatten")
 	log.Printf("disable refresh:                  export REFRESH=false")
 
-	debug := env.Bool("DEBUG", true)
-	applicationAddr := env.String("LISTEN_ADDR", ":8080")
-	backendAddr := env.String("BACKEND", "dir:samples")
-	backendOptions := env.String("BACKEND_OPTIONS", "")
-	refreshAmqpURL := env.String("AMQP_URL", "amqp://guest:guest@rabbitmq:5672/")
-	refreshEnabled := env.Bool("REFRESH", true)
-	healthAddr := env.String("HEALTH_ADDR", ":8888")
-	healthPath := env.String("HEALTH_PATH", "/health")
-	metricsAddr := env.String("METRICS_ADDR", ":3000")
-	metricsPath := env.String("METRICS_PATH", "/metrics")
-	groupcachePort := env.String("GROUPCACHE_PORT", ":5000")
-	ttl := env.Duration("TTL", time.Duration(0))
-	jaegerURL := env.String("JAEGER_URL", "http://jaeger-collector:14268/api/traces")
-	cache := env.Bool("CACHE", true)
+	app.config = newConfig(app.me)
 
 	//
 	// initialize tracing
@@ -89,7 +77,7 @@ func main() {
 	var tracer trace.Tracer
 
 	{
-		tp, errTracer := tracerProvider(app.me, jaegerURL)
+		tp, errTracer := tracerProvider(app.me, app.config.jaegerURL)
 		if errTracer != nil {
 			log.Fatal(errTracer)
 		}
@@ -120,7 +108,7 @@ func main() {
 	// create backend
 	//
 
-	storage := newBackend(tracer, backendAddr, backendOptions)
+	storage := newBackend(tracer, app.config.backendAddr, app.config.backendOptions)
 
 	//
 	// create groupcache pool
@@ -129,7 +117,7 @@ func main() {
 	var myURL string
 	for myURL == "" {
 		var errURL error
-		myURL, errURL = kubegroup.FindMyURL(groupcachePort)
+		myURL, errURL = kubegroup.FindMyURL(app.config.groupcachePort)
 		if errURL != nil {
 			log.Printf("my URL: %v", errURL)
 		}
@@ -149,10 +137,10 @@ func main() {
 	// start groupcache server
 	//
 
-	app.serverGroupcache = newServerHTTP(groupcachePort, pool)
+	app.serverGroupcache = newServerHTTP(app.config.groupcachePort, pool)
 
 	go func() {
-		log.Printf("groupcache server: listening on %s", groupcachePort)
+		log.Printf("groupcache server: listening on %s", app.config.groupcachePort)
 		err := app.serverGroupcache.server.ListenAndServe()
 		log.Printf("groupcache server: exited: %v", err)
 	}()
@@ -161,7 +149,7 @@ func main() {
 	// start watcher for addresses of peers
 	//
 
-	go kubegroup.UpdatePeers(pool, groupcachePort)
+	go kubegroup.UpdatePeers(pool, app.config.groupcachePort)
 
 	// https://talks.golang.org/2013/oscon-dl.slide#46
 	//
@@ -191,8 +179,8 @@ func main() {
 				return errFetch
 			}
 			var expire time.Time // zero value for expire means no expiration
-			if ttl != 0 {
-				expire = time.Now().Add(ttl)
+			if app.config.ttl != 0 {
+				expire = time.Now().Add(app.config.ttl)
 			}
 			dest.SetBytes(data, expire)
 			return nil
@@ -208,9 +196,9 @@ func main() {
 	// receive refresh events
 	//
 
-	if refreshEnabled {
+	if app.config.refreshEnabled {
 		// "#" means receive notification for all applications
-		refresher := refresh.New(refreshAmqpURL, app.me, []string{"#"}, debug, nil)
+		refresher := refresh.New(app.config.refreshAmqpURL, app.me, []string{"#"}, app.config.debug, nil)
 
 		go func() {
 			for app := range refresher.C {
@@ -235,13 +223,13 @@ func main() {
 	// register application routes
 	//
 
-	app.serverMain = newServerGin(applicationAddr)
+	app.serverMain = newServerGin(app.config.applicationAddr)
 	app.serverMain.router.Use(metricsMiddleware())
 	app.serverMain.router.Use(gin.Logger())
 	app.serverMain.router.Use(otelgin.Middleware(app.me))
 
 	const pathAny = "/*anything"
-	log.Printf("registering route: %s %s", applicationAddr, pathAny)
+	log.Printf("registering route: %s %s", app.config.applicationAddr, pathAny)
 	app.serverMain.router.GET(pathAny, func(c *gin.Context) {
 
 		path := c.Param("anything")
@@ -253,7 +241,7 @@ func main() {
 
 		log.Printf("traceID=%s", span.SpanContext().TraceID())
 
-		if !cache {
+		if !app.config.cache {
 			// cache disabled
 			data, errFetch := fetch(ctx, storage, path)
 			if errFetch != nil {
@@ -293,7 +281,7 @@ func main() {
 	//
 
 	go func() {
-		log.Printf("application server: listening on %s", applicationAddr)
+		log.Printf("application server: listening on %s", app.config.applicationAddr)
 		err := app.serverMain.server.ListenAndServe()
 		log.Printf("application server: exited: %v", err)
 	}()
@@ -302,15 +290,15 @@ func main() {
 	// start health server
 	//
 
-	app.serverHealth = newServerGin(healthAddr)
+	app.serverHealth = newServerGin(app.config.healthAddr)
 
-	log.Printf("registering route: %s %s", healthAddr, healthPath)
-	app.serverHealth.router.GET(healthPath, func(c *gin.Context) {
+	log.Printf("registering route: %s %s", app.config.healthAddr, app.config.healthPath)
+	app.serverHealth.router.GET(app.config.healthPath, func(c *gin.Context) {
 		c.String(http.StatusOK, "health ok")
 	})
 
 	go func() {
-		log.Printf("health server: listening on %s", healthAddr)
+		log.Printf("health server: listening on %s", app.config.healthAddr)
 		err := app.serverHealth.server.ListenAndServe()
 		log.Printf("health server: exited: %v", err)
 	}()
@@ -319,14 +307,14 @@ func main() {
 	// start metrics server
 	//
 
-	app.serverMetrics = newServerGin(metricsAddr)
+	app.serverMetrics = newServerGin(app.config.metricsAddr)
 
 	go func() {
 		prom := promhttp.Handler()
-		app.serverMetrics.router.GET(metricsPath, func(c *gin.Context) {
+		app.serverMetrics.router.GET(app.config.metricsPath, func(c *gin.Context) {
 			prom.ServeHTTP(c.Writer, c.Request)
 		})
-		log.Printf("metrics server: listening on %s %s", metricsAddr, metricsPath)
+		log.Printf("metrics server: listening on %s %s", app.config.metricsAddr, app.config.metricsPath)
 		err := app.serverMetrics.server.ListenAndServe()
 		log.Printf("metrics server: exited: %v", err)
 	}()
