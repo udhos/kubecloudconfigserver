@@ -11,7 +11,7 @@ require (
 	github.com/udhos/boilerplate v1.2.0
 	github.com/udhos/kubegroup v0.1.0
 	github.com/udhos/otelconfig v0.1.4
-	github.com/udhos/refresh v0.0.2
+	github.com/udhos/refresh v0.0.3
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.45.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.45.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.20.0

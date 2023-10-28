@@ -211,8 +211,8 @@ github.com/udhos/kubegroup v0.1.0 h1:+YfVLkhWmER6pUcmLBCH+KiMOa41AzF8EK1aIkAC9TM
 github.com/udhos/kubegroup v0.1.0/go.mod h1:HNuluG37FRdhtzk04jBM7HNw9GJ0VQvlhGufgYw79m0=
 github.com/udhos/otelconfig v0.1.4 h1:z1Mxj6p1SHVIZTOvo8JR1pmlxRgLBMo7yTAiIwsxHwA=
 github.com/udhos/otelconfig v0.1.4/go.mod h1:f1oC4Om9UjV8aiDPrhXQa30oFuUFtoM2KNh1/ukBlfk=
-github.com/udhos/refresh v0.0.2 h1:yCLa3g9vd/6h/hYi4FOz9HAumtI7vLKimBMGN1TBHcw=
-github.com/udhos/refresh v0.0.2/go.mod h1:yYqWfGmGWZE0FQTTTIsCUd85sQTO8c9JYlQ9BemBHMk=
+github.com/udhos/refresh v0.0.3 h1:DZoxdCgXqjYv8WT8XOPOibbLYWoK8g6S7S413aLKfy4=
+github.com/udhos/refresh v0.0.3/go.mod h1:yYqWfGmGWZE0FQTTTIsCUd85sQTO8c9JYlQ9BemBHMk=
 github.com/ugorji/go/codec v1.2.11 h1:BMaWp1Bb6fHwEtbplGBGJ498wD+LKlNSl25MjdZY4dU=
 github.com/ugorji/go/codec v1.2.11/go.mod h1:UNopzCgEMSXjBc6AOMqYvWC1ktqTAfzJZUZgYf6w6lg=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

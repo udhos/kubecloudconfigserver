@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const version = "0.4.0"
+const version = "0.5.0"
 
 type application struct {
 	serverMain       *serverGin
